@@ -59,7 +59,7 @@ export default async function TenantBookingPage({ params }: Props) {
 
   // Fetch existing confirmed bookings for this tenant (for slot blocking)
   const { data: existingBookings } = await supabase
-    .from('bookings')
+    .from('goelev8_bookings')
     .select('booking_date, booking_time')
     .eq('tenant_slug', slug)
     .eq('status', 'confirmed');

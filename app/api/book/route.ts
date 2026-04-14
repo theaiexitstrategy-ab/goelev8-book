@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
     // Check for double-booking
     const { data: existing } = await supabase
-      .from('bookings')
+      .from('goelev8_bookings')
       .select('id')
       .eq('tenant_slug', slug)
       .eq('booking_date', date)
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     // Insert booking
     const { data: booking, error } = await supabase
-      .from('bookings')
+      .from('goelev8_bookings')
       .insert({
         tenant_slug: slug,
         client_name,

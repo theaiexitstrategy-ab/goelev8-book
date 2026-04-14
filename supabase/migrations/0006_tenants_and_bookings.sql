@@ -1,5 +1,6 @@
 -- © 2026 GoElev8.ai | Aaron Bryant. All rights reserved.
 -- Migration: Tenants and bookings schema for book.goelev8.ai
+-- Note: uses goelev8_bookings to avoid conflict with existing bookings table
 
 -- ═══════════════════════════════════════════════════
 -- 1. Tables
@@ -24,7 +25,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   booking_url text GENERATED ALWAYS AS ('https://book.goelev8.ai/' || slug) STORED
 );
 
-CREATE TABLE IF NOT EXISTS bookings (
+CREATE TABLE IF NOT EXISTS goelev8_bookings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_slug text REFERENCES tenants(slug),
   client_name text,
@@ -43,29 +44,26 @@ CREATE TABLE IF NOT EXISTS bookings (
 -- ═══════════════════════════════════════════════════
 
 CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug);
-CREATE INDEX IF NOT EXISTS idx_bookings_tenant_slug ON bookings(tenant_slug);
-CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(booking_date);
+CREATE INDEX IF NOT EXISTS idx_goelev8_bookings_tenant_slug ON goelev8_bookings(tenant_slug);
+CREATE INDEX IF NOT EXISTS idx_goelev8_bookings_date ON goelev8_bookings(booking_date);
 
 -- ═══════════════════════════════════════════════════
 -- 3. Row Level Security
 -- ═══════════════════════════════════════════════════
 
 ALTER TABLE tenants ENABLE ROW LEVEL SECURITY;
-ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goelev8_bookings ENABLE ROW LEVEL SECURITY;
 
--- Public can read active tenants (for booking pages)
 DROP POLICY IF EXISTS tenants_public_select ON tenants;
 CREATE POLICY tenants_public_select ON tenants
   FOR SELECT USING (true);
 
--- Public can insert bookings (validated server-side)
-DROP POLICY IF EXISTS bookings_public_insert ON bookings;
-CREATE POLICY bookings_public_insert ON bookings
+DROP POLICY IF EXISTS goelev8_bookings_public_insert ON goelev8_bookings;
+CREATE POLICY goelev8_bookings_public_insert ON goelev8_bookings
   FOR INSERT WITH CHECK (true);
 
--- Public can read bookings for slot blocking (only date/time, no PII exposed via API)
-DROP POLICY IF EXISTS bookings_public_select ON bookings;
-CREATE POLICY bookings_public_select ON bookings
+DROP POLICY IF EXISTS goelev8_bookings_public_select ON goelev8_bookings;
+CREATE POLICY goelev8_bookings_public_select ON goelev8_bookings
   FOR SELECT USING (true);
 
 -- ═══════════════════════════════════════════════════
