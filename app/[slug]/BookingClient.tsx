@@ -3,7 +3,7 @@
 
 import { useCallback, useMemo, useState } from 'react';
 
-type ServiceItem = { name: string; duration: number; price: number };
+type ServiceItem = { name: string; duration: number; price: number; info_note?: string | null };
 type Availability = { days: string[]; open: string; close: string };
 type Tenant = {
   id: string;
@@ -182,6 +182,23 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: var(--black); color: var(--text); font-family: "DM Mono", monospace; font-size: 14px; line-height: 1.6; }
         body::after { content: ""; position: fixed; inset: 0; background-image: linear-gradient(rgba(200,169,110,.018) 1px,transparent 1px), linear-gradient(90deg,rgba(200,169,110,.018) 1px,transparent 1px); background-size: 72px 72px; pointer-events: none; z-index: 0; }
+        .booking-layout {
+          display: grid;
+          grid-template-columns: 240px 1fr;
+        }
+        @media (max-width: 700px) {
+          .booking-layout {
+            grid-template-columns: 1fr !important;
+          }
+          .booking-sidebar {
+            order: 2;
+            border-right: none !important;
+            border-top: 1px solid var(--border);
+          }
+          .booking-main {
+            order: 1;
+          }
+        }
       `}</style>
       <div style={{ minHeight: '100vh', position: 'relative', zIndex: 1 }}>
         {/* Header */}
@@ -225,29 +242,37 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
         </header>
 
         {/* Main */}
-        <div style={{ maxWidth: 900, margin: '0 auto', padding: '32px 16px 80px' }}>
+        <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 16px 80px' }}>
           <div style={{
             background: 'var(--ink)',
             border: '1px solid var(--border)',
             overflow: 'hidden',
           }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: services.length > 0 ? '200px 1fr' : '1fr',
-            }}>
+            <div
+              className="booking-layout"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: services.length > 0 ? '240px 1fr' : '1fr',
+              }}
+            >
               {/* Service sidebar */}
               {services.length > 0 && (
-                <div style={{
-                  background: 'var(--surface)',
-                  borderRight: '1px solid var(--border)',
-                  padding: '20px 16px',
-                }}>
+                <div
+                  className="booking-sidebar"
+                  style={{
+                    background: 'var(--surface)',
+                    borderRight: '1px solid var(--border)',
+                    padding: '24px 18px',
+                  }}
+                >
                   <div style={{
                     fontSize: 9,
                     letterSpacing: '.1em',
                     textTransform: 'uppercase' as const,
                     color: 'var(--muted)',
-                    marginBottom: 10,
+                    marginBottom: 14,
+                    fontFamily: "'Syne', sans-serif",
+                    fontWeight: 600,
                   }}>
                     Select a Service
                   </div>
@@ -256,7 +281,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                       key={i}
                       onClick={() => { setSelectedService(svc); setSelectedTime(null); }}
                       style={{
-                        padding: '12px 10px',
+                        padding: '14px 12px',
                         borderBottom: '1px solid var(--border)',
                         cursor: 'pointer',
                         borderLeft: selectedService?.name === svc.name ? `2px solid ${brand}` : '2px solid transparent',
@@ -267,39 +292,57 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                       <div style={{
                         fontFamily: "'Syne', sans-serif",
                         fontWeight: 600,
-                        fontSize: 12,
-                        display: 'flex',
-                        justifyContent: 'space-between',
+                        fontSize: 13,
                         color: selectedService?.name === svc.name ? brand : 'var(--text)',
+                        marginBottom: 2,
                       }}>
                         {svc.name}
-                        <span style={{ color: brand }}>${svc.price}</span>
                       </div>
-                      <div style={{ fontSize: 9, color: 'var(--muted)', marginTop: 2 }}>
-                        {svc.duration} min
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: 10,
+                        color: 'var(--muted)',
+                        marginTop: 4,
+                      }}>
+                        <span>{svc.duration} min</span>
+                        {svc.price > 0 && <span style={{ color: brand, fontWeight: 500 }}>${svc.price}</span>}
                       </div>
+                      {svc.info_note && (
+                        <div style={{
+                          fontSize: 10,
+                          color: 'var(--muted)',
+                          marginTop: 6,
+                          lineHeight: 1.5,
+                          opacity: 0.8,
+                          fontStyle: 'italic',
+                        }}>
+                          {svc.info_note}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
 
               {/* Calendar + slots */}
-              <div style={{ padding: 24 }}>
+              <div className="booking-main" style={{ padding: '28px 24px' }}>
                 {step === 'calendar' && (
                   <>
                     {/* Month header */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                      <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: 18 }}>
                         {MONTH_NAMES[currentMonth.month]} {currentMonth.year}
                       </div>
-                      <div style={{ display: 'flex', gap: 4 }}>
+                      <div style={{ display: 'flex', gap: 6 }}>
                         <button
                           onClick={() => setCurrentMonth(p => {
                             const m = p.month === 0 ? 11 : p.month - 1;
                             const y = p.month === 0 ? p.year - 1 : p.year;
                             return { year: y, month: m };
                           })}
-                          style={{ width: 28, height: 28, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          style={{ width: 32, height: 32, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .2s' }}
                         >
                           &#9665;
                         </button>
@@ -309,7 +352,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                             const y = p.month === 11 ? p.year + 1 : p.year;
                             return { year: y, month: m };
                           })}
-                          style={{ width: 28, height: 28, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                          style={{ width: 32, height: 32, background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--muted)', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .2s' }}
                         >
                           &#9655;
                         </button>
@@ -317,16 +360,16 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                     </div>
 
                     {/* Day labels */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 4 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 6 }}>
                       {DAY_LABELS.map(d => (
-                        <div key={d} style={{ textAlign: 'center', fontSize: 9, letterSpacing: '.08em', textTransform: 'uppercase' as const, color: 'var(--dim)', padding: '4px 0' }}>
+                        <div key={d} style={{ textAlign: 'center', fontSize: 10, letterSpacing: '.08em', textTransform: 'uppercase' as const, color: 'var(--muted)', padding: '6px 0', fontFamily: "'Syne', sans-serif", fontWeight: 600 }}>
                           {d}
                         </div>
                       ))}
                     </div>
 
                     {/* Calendar grid */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4 }}>
                       {calendarDays.map((cell, i) => {
                         if (cell.day === 0) return <div key={`e${i}`} />;
                         const isSelected = selectedDate === cell.dateStr;
@@ -343,8 +386,9 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'center',
-                              fontSize: 11,
+                              fontSize: 12,
                               position: 'relative',
+                              borderRadius: 4,
                               border: isSelected ? `1px solid ${brand}` : cell.isToday ? `1px solid ${brand}55` : '1px solid transparent',
                               background: isSelected ? brand : 'transparent',
                               color: isSelected ? 'var(--black)' : cell.isPast ? 'var(--dim)' : cell.available ? 'var(--text)' : 'var(--dim)',
@@ -358,11 +402,11 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                             {cell.available && !isSelected && (
                               <span style={{
                                 position: 'absolute',
-                                bottom: 3,
+                                bottom: 4,
                                 left: '50%',
                                 transform: 'translateX(-50%)',
-                                width: 3,
-                                height: 3,
+                                width: 4,
+                                height: 4,
                                 borderRadius: '50%',
                                 background: 'var(--green)',
                               }} />
@@ -374,17 +418,19 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
 
                     {/* Time slots */}
                     {selectedDate && (
-                      <div style={{ marginTop: 18 }}>
+                      <div style={{ marginTop: 24 }}>
                         <div style={{
-                          fontSize: 9,
+                          fontSize: 10,
                           letterSpacing: '.1em',
                           textTransform: 'uppercase' as const,
                           color: 'var(--muted)',
-                          marginBottom: 8,
+                          marginBottom: 12,
+                          fontFamily: "'Syne', sans-serif",
+                          fontWeight: 600,
                         }}>
                           Available Times &mdash; {formatDateLabel(selectedDate)}
                         </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
                           {timeSlots.map(time => {
                             const booked = isSlotBooked(time);
                             const sel = selectedTime === time;
@@ -395,15 +441,17 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                                 style={{
                                   border: sel ? `1px solid ${brand}` : '1px solid var(--border)',
                                   background: sel ? `${brand}22` : 'var(--surface)',
-                                  padding: '8px 4px',
+                                  padding: '10px 8px',
                                   textAlign: 'center',
-                                  fontSize: 11,
-                                  color: booked ? 'var(--dim)' : sel ? brand : 'var(--muted)',
+                                  fontSize: 12,
+                                  borderRadius: 4,
+                                  color: booked ? 'var(--dim)' : sel ? brand : 'var(--text)',
                                   textDecoration: booked ? 'line-through' : 'none',
                                   opacity: booked ? 0.3 : 1,
                                   cursor: booked ? 'default' : 'pointer',
                                   pointerEvents: booked ? 'none' : 'auto',
                                   transition: 'all .2s',
+                                  fontWeight: sel ? 600 : 400,
                                 }}
                               >
                                 {time}
@@ -416,22 +464,23 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
 
                     {/* Confirm button */}
                     {selectedDate && selectedTime && (
-                      <div style={{ marginTop: 16 }}>
+                      <div style={{ marginTop: 20 }}>
                         <button
                           onClick={() => setStep('form')}
                           style={{
                             width: '100%',
                             background: brand,
-                            color: 'var(--black)',
+                            color: '#fff',
                             border: 'none',
-                            padding: '13px',
+                            padding: '15px',
                             fontFamily: "'Syne', sans-serif",
                             fontWeight: 700,
-                            fontSize: 12,
+                            fontSize: 14,
                             letterSpacing: '.05em',
                             textTransform: 'uppercase' as const,
                             cursor: 'pointer',
                             clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))',
+                            textShadow: '0 1px 2px rgba(0,0,0,.3)',
                           }}
                         >
                           Continue &mdash; {selectedTime} &rarr;
@@ -449,7 +498,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                         {selectedService?.name} &mdash; {formatDateLabel(selectedDate!)} at {selectedTime}
-                        {selectedService && <span style={{ color: brand }}> &middot; ${selectedService.price}</span>}
+                        {selectedService && selectedService.price > 0 && <span style={{ color: brand }}> &middot; ${selectedService.price}</span>}
                       </div>
                     </div>
 
@@ -471,6 +520,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                             fontFamily: '"DM Mono", monospace',
                             fontSize: 13,
                             outline: 'none',
+                            borderRadius: 4,
                           }}
                         />
                       </div>
@@ -492,6 +542,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                             fontFamily: '"DM Mono", monospace',
                             fontSize: 13,
                             outline: 'none',
+                            borderRadius: 4,
                           }}
                         />
                       </div>
@@ -513,6 +564,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                             fontFamily: '"DM Mono", monospace',
                             fontSize: 13,
                             outline: 'none',
+                            borderRadius: 4,
                           }}
                         />
                       </div>
@@ -533,6 +585,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                           fontFamily: '"DM Mono", monospace',
                           fontSize: 12,
                           cursor: 'pointer',
+                          borderRadius: 4,
                         }}
                       >
                         Back
@@ -543,20 +596,21 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                         style={{
                           flex: 1,
                           background: (!clientName || !clientPhone) ? 'var(--dim)' : brand,
-                          color: 'var(--black)',
+                          color: '#fff',
                           border: 'none',
                           padding: '13px',
                           fontFamily: "'Syne', sans-serif",
                           fontWeight: 700,
-                          fontSize: 12,
+                          fontSize: 13,
                           letterSpacing: '.05em',
                           textTransform: 'uppercase' as const,
                           cursor: (!clientName || !clientPhone) ? 'default' : 'pointer',
                           opacity: submitting ? 0.6 : 1,
                           clipPath: 'polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px))',
+                          textShadow: '0 1px 2px rgba(0,0,0,.3)',
                         }}
                       >
-                        {submitting ? 'Booking...' : 'Confirm Booking →'}
+                        {submitting ? 'Booking...' : 'Confirm Booking'}
                       </button>
                     </div>
                   </div>
@@ -582,7 +636,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                       Booking Confirmed!
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.9 }}>
-                      {selectedService?.name} &middot; ${selectedService?.price}<br />
+                      {selectedService?.name}{selectedService && selectedService.price > 0 ? ` \u00B7 $${selectedService.price}` : ''}<br />
                       {formatDateLabel(selectedDate!)} at {selectedTime}
                     </div>
                     <div style={{

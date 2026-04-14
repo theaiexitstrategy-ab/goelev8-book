@@ -36,6 +36,7 @@ export default function LandingPage() {
   const [wSvc, setWSvc] = useState('');
   const [wColor, setWColor] = useState('#c8a96e');
   const [wLogoSrc, setWLogoSrc] = useState('');
+  const [wLogoFile, setWLogoFile] = useState<File | null>(null);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [wOpen, setWOpen] = useState('8:00 AM');
   const [wClose, setWClose] = useState('6:00 PM');
@@ -269,6 +270,18 @@ export default function LandingPage() {
       return;
     }
     try {
+      // Upload logo if one was selected
+      let logoUrl: string | null = null;
+      if (wLogoFile) {
+        const formData = new FormData();
+        formData.append('file', wLogoFile);
+        const logoRes = await fetch('/api/upload-logo', { method: 'POST', body: formData });
+        if (logoRes.ok) {
+          const logoData = await logoRes.json();
+          logoUrl = logoData.url;
+        }
+      }
+
       const res = await fetch('/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -278,6 +291,7 @@ export default function LandingPage() {
           owner_email: wEmail,
           owner_phone: wPhone,
           brand_color: wColor,
+          logo_url: logoUrl,
           services: wServices.filter(s => s.name.trim()).map(s => ({
             name: s.name.trim(),
             duration: parseInt(s.duration) || 60,
@@ -331,7 +345,10 @@ export default function LandingPage() {
           <li><a href="#pricing">Pricing</a></li>
           <li><a href="https://portal.goelev8.ai">Portal Login</a></li>
         </ul>
-        <button className="nav-cta" onClick={openWizard}>Claim Your Link</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <a href="https://portal.goelev8.ai" className="nav-signin">Sign In</a>
+          <button className="nav-cta" onClick={openWizard}>Claim Your Link</button>
+        </div>
       </nav>
 
       {/* HERO */}
@@ -718,6 +735,7 @@ export default function LandingPage() {
                     <input type="file" accept="image/*" style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} onChange={e => {
                       const file = e.target.files?.[0];
                       if (!file) return;
+                      setWLogoFile(file);
                       const r = new FileReader();
                       r.onload = ev => setWLogoSrc(ev.target?.result as string);
                       r.readAsDataURL(file);
@@ -913,10 +931,12 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
 .nav-links{display:flex;align-items:center;gap:28px;list-style:none}
 .nav-links a{color:var(--muted);text-decoration:none;font-size:11px;letter-spacing:.08em;text-transform:uppercase;transition:color .2s}
 .nav-links a:hover{color:var(--gold)}
+.nav-signin{color:var(--muted);text-decoration:none;font-family:"Syne",sans-serif;font-weight:600;font-size:12px;letter-spacing:.06em;text-transform:uppercase;padding:9px 18px;border:1px solid var(--border);background:transparent;transition:all .2s;cursor:none}
+.nav-signin:hover{color:var(--gold);border-color:var(--gold)}
 .nav-cta{background:var(--gold);color:var(--black);border:none;padding:10px 22px;font-family:"Syne",sans-serif;font-weight:700;font-size:12px;letter-spacing:.06em;text-transform:uppercase;cursor:none;transition:all .2s;clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px))}
 .nav-cta:hover{background:var(--gold-light);transform:translateY(-1px)}
 .hero{min-height:100vh;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:60px;padding:100px 60px 60px;position:relative;z-index:2;max-width:1300px;margin:0 auto}
-@media(max-width:900px){.hero{grid-template-columns:1fr;padding:100px 24px 60px}.nav-links{display:none}}
+@media(max-width:900px){.hero{grid-template-columns:1fr;padding:100px 24px 60px}.nav-links{display:none}.nav-signin{display:none}}
 .hero-left{display:flex;flex-direction:column;gap:0}
 .hero-badge{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:rgba(200,169,110,.05);padding:6px 14px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);margin-bottom:40px;width:fit-content}
 .hero-badge::before{content:"";width:6px;height:6px;background:var(--green);border-radius:50%;animation:blink 1.6s ease-in-out infinite}

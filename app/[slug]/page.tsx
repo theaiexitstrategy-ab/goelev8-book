@@ -10,6 +10,7 @@ type ServiceItem = {
   name: string;
   duration: number;
   price: number;
+  info_note?: string | null;
 };
 
 type Availability = {
@@ -88,6 +89,7 @@ export default async function TenantBookingPage({ params }: Props) {
           name: s.full_name || s.name,
           duration: 60,
           price: 0,
+          info_note: s.info_note || null,
         }));
     }
 
