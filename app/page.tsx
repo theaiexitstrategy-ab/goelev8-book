@@ -47,6 +47,7 @@ export default function LandingPage() {
   const [wPay, setWPay] = useState('');
   const [launched, setLaunched] = useState(false);
   const [slugStatus, setSlugStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [wServices, setWServices] = useState<{ name: string; duration: string; price: string }[]>([{ name: '', duration: '60', price: '' }]);
 
   /* ─── demo calendar state ─── */
   const [demoSelDay, setDemoSelDay] = useState<number | null>(null);
@@ -277,7 +278,11 @@ export default function LandingPage() {
           owner_email: wEmail,
           owner_phone: wPhone,
           brand_color: wColor,
-          services: [],
+          services: wServices.filter(s => s.name.trim()).map(s => ({
+            name: s.name.trim(),
+            duration: parseInt(s.duration) || 60,
+            price: parseInt(s.price) || 0,
+          })),
           availability: {
             days: selectedDays.length ? selectedDays : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
             open: wOpen,
@@ -662,9 +667,37 @@ export default function LandingPage() {
                     <div key={k} className={`wc${wBt === k ? ' on' : ''}`} onClick={() => setWBt(k)}>{v}</div>
                   ))}
                 </div>
-                <div className="wf" style={{ marginTop: 20 }}>
-                  <div className="wl">Briefly describe your main service (optional)</div>
-                  <input className="wi" value={wSvc} onChange={e => setWSvc(e.target.value)} placeholder="e.g. 1-on-1 training, hair braiding, strategy sessions..." />
+                <div className="wf" style={{ marginTop: 24 }}>
+                  <div className="wl">Your Services <span style={{ color: '#e05252' }}>*</span></div>
+                  <p style={{ fontSize: 11, color: '#6b6560', marginBottom: 10, lineHeight: 1.7 }}>Add at least one service so clients can book with you.</p>
+                  {wServices.map((svc, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'flex-end' }}>
+                      <div style={{ flex: 2 }}>
+                        {i === 0 && <div style={{ fontSize: 9, color: '#6b6560', marginBottom: 4, letterSpacing: '.08em', textTransform: 'uppercase' as const }}>Service Name</div>}
+                        <input className="wi" style={{ margin: 0 }} placeholder="e.g. 1-on-1 Training" value={svc.name} onChange={e => {
+                          const n = [...wServices]; n[i] = { ...n[i], name: e.target.value }; setWServices(n);
+                        }} />
+                      </div>
+                      <div style={{ flex: 0, minWidth: 70 }}>
+                        {i === 0 && <div style={{ fontSize: 9, color: '#6b6560', marginBottom: 4, letterSpacing: '.08em', textTransform: 'uppercase' as const }}>Min</div>}
+                        <input className="wi" style={{ margin: 0, textAlign: 'center' }} placeholder="60" value={svc.duration} onChange={e => {
+                          const n = [...wServices]; n[i] = { ...n[i], duration: e.target.value }; setWServices(n);
+                        }} />
+                      </div>
+                      <div style={{ flex: 0, minWidth: 80 }}>
+                        {i === 0 && <div style={{ fontSize: 9, color: '#6b6560', marginBottom: 4, letterSpacing: '.08em', textTransform: 'uppercase' as const }}>Price $</div>}
+                        <input className="wi" style={{ margin: 0, textAlign: 'center' }} placeholder="75" value={svc.price} onChange={e => {
+                          const n = [...wServices]; n[i] = { ...n[i], price: e.target.value }; setWServices(n);
+                        }} />
+                      </div>
+                      {wServices.length > 1 && (
+                        <button onClick={() => setWServices(wServices.filter((_, j) => j !== i))} style={{ background: 'transparent', border: '1px solid #222', color: '#e05252', width: 36, height: 36, cursor: 'pointer', fontSize: 14, flexShrink: 0 }}>&times;</button>
+                      )}
+                    </div>
+                  ))}
+                  {wServices.length < 6 && (
+                    <button onClick={() => setWServices([...wServices, { name: '', duration: '60', price: '' }])} style={{ background: 'transparent', border: '1px dashed #222', color: '#6b6560', padding: '8px 14px', fontSize: 11, cursor: 'pointer', width: '100%', marginTop: 4 }}>+ Add another service</button>
+                  )}
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
                   <button className="wb" onClick={() => setWStep(1)}>Back</button>
@@ -843,9 +876,10 @@ export default function LandingPage() {
                 <div style={{ fontSize: 48, marginBottom: 16 }}>🚀</div>
                 <h3 style={{ fontFamily: "'Syne',sans-serif", fontWeight: 800, fontSize: 26, marginBottom: 8, color: '#3ecf8e' }}>You&apos;re live!</h3>
                 <div style={{ fontSize: 13, color: '#c8a96e', letterSpacing: '.04em', marginBottom: 16 }}>book.goelev8.ai/{wSlug}</div>
-                <div style={{ fontSize: 12, color: '#6b6560', lineHeight: 1.9, marginBottom: 24 }}>Check your email for login details.<br />Your AI assistant is ready right now.</div>
+                <div style={{ fontSize: 12, color: '#6b6560', lineHeight: 1.9, marginBottom: 24 }}>Your booking page is live right now.<br />Share this link with your clients to start receiving bookings.</div>
                 <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-                  <button className="wn" style={{ padding: '12px 24px', fontSize: 12, width: 'auto', margin: 0 }} onClick={() => window.open('https://portal.goelev8.ai', '_blank')}>Open My Portal</button>
+                  <button className="wn" style={{ padding: '12px 24px', fontSize: 12, width: 'auto', margin: 0 }} onClick={() => window.open(`https://book.goelev8.ai/${wSlug}`, '_blank')}>View My Booking Page &rarr;</button>
+                  <button className="wb" style={{ padding: '12px 24px', fontSize: 12 }} onClick={() => window.open(`https://portal.goelev8.ai/${wSlug}`, '_blank')}>Open Portal</button>
                   <button className="wb" style={{ padding: '12px 24px', fontSize: 12 }} onClick={closeWizard}>Back to Site</button>
                 </div>
               </div>
