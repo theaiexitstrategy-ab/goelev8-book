@@ -3,10 +3,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-service';
 
-async function sendSms(to: string, body: string) {
+async function sendSms(to: string, body: string, fromNumber?: string | null) {
   const sid = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
+  const from = fromNumber || process.env.TWILIO_PHONE_NUMBER;
   if (!sid || !token || !from) return;
 
   await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
@@ -30,15 +30,28 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Verify tenant exists
+    // Verify tenant exists and get linked client info
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('business_name, owner_phone')
+      .select('business_name, owner_phone, client_id')
       .eq('slug', slug)
       .single();
 
     if (!tenant) {
       return NextResponse.json({ error: 'Business not found.' }, { status: 404 });
+    }
+
+    // If tenant is linked to a portal client, use their Twilio phone number
+    let tenantPhone: string | null = null;
+    if (tenant.client_id) {
+      const { data: client } = await supabase
+        .from('clients')
+        .select('twilio_phone_number')
+        .eq('id', tenant.client_id)
+        .single();
+      if (client?.twilio_phone_number) {
+        tenantPhone = client.twilio_phone_number;
+      }
     }
 
     // Check for double-booking
@@ -75,17 +88,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create booking.' }, { status: 500 });
     }
 
-    // SMS confirmation to client
+    // SMS confirmation to client — from the tenant's own number
     await sendSms(
       client_phone,
-      `Confirmed! Your ${service} at ${tenant.business_name} is booked for ${date} at ${time}. Reply CANCEL to cancel.`
+      `Confirmed! Your ${service} at ${tenant.business_name} is booked for ${date} at ${time}. Reply CANCEL to cancel.`,
+      tenantPhone
     );
 
     // SMS notification to business owner
     if (tenant.owner_phone) {
       await sendSms(
         tenant.owner_phone,
-        `New booking: ${client_name} booked ${service} for ${date} at ${time}. Via book.goelev8.ai/${slug}`
+        `New booking: ${client_name} booked ${service} for ${date} at ${time}. Via book.goelev8.ai/${slug}`,
+        tenantPhone
       );
     }
 
