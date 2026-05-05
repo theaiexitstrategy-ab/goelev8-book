@@ -19,6 +19,88 @@ async function sendSms(to: string, body: string, fromNumber?: string | null) {
   });
 }
 
+// Mirror a booking into the portal's bookings + leads tables so it shows up
+// in portal.goelev8.ai/{slug}. Mirrors the shape used by book.theflexfacility.com.
+// Failure here is non-fatal — the user's booking is already confirmed.
+async function mirrorToPortal(
+  supabase: ReturnType<typeof createServiceClient>,
+  args: {
+    clientId: string;
+    name: string;
+    phone: string;
+    email: string | null;
+    service: string;
+    date: string;
+    time: string;
+  }
+) {
+  try {
+    const { clientId, name, phone, email, service, date, time } = args;
+    const startsAt = new Date(`${date} ${time}`).toISOString();
+    const bookingDate = `${date} ${time}`;
+
+    const { data: bookingRow, error: bookingErr } = await supabase
+      .from('bookings')
+      .insert({
+        client_id: clientId,
+        lead_name: name,
+        phone,
+        email: email || null,
+        booking_date: bookingDate,
+        service,
+        service_type: service,
+        starts_at: startsAt,
+        status: 'Confirmed',
+        source: 'book.goelev8.ai',
+      })
+      .select('id')
+      .single();
+
+    if (bookingErr) {
+      console.error('Portal bookings insert error:', bookingErr);
+      return;
+    }
+
+    let leadId: string | null = null;
+    const { data: existingLead } = await supabase
+      .from('leads')
+      .select('id')
+      .eq('client_id', clientId)
+      .eq('phone', phone)
+      .maybeSingle();
+
+    if (existingLead) {
+      leadId = existingLead.id;
+      await supabase
+        .from('leads')
+        .update({ status: 'Ready to Book', name, email: email || null })
+        .eq('id', leadId);
+    } else {
+      const { data: newLead } = await supabase
+        .from('leads')
+        .insert({
+          client_id: clientId,
+          name,
+          phone,
+          email: email || null,
+          source: 'book.goelev8.ai',
+          funnel: 'booking',
+          status: 'Ready to Book',
+          tags: ['ready-to-book'],
+        })
+        .select('id')
+        .single();
+      leadId = newLead?.id || null;
+    }
+
+    if (leadId && bookingRow?.id) {
+      await supabase.from('bookings').update({ lead_id: leadId }).eq('id', bookingRow.id);
+    }
+  } catch (err) {
+    console.error('Portal mirror error (non-fatal):', err);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -86,6 +168,19 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Booking insert error:', error);
       return NextResponse.json({ error: 'Failed to create booking.' }, { status: 500 });
+    }
+
+    // Mirror to portal so the booking shows up at portal.goelev8.ai/{slug}
+    if (tenant.client_id) {
+      await mirrorToPortal(supabase, {
+        clientId: tenant.client_id,
+        name: client_name,
+        phone: client_phone,
+        email: client_email || null,
+        service,
+        date,
+        time,
+      });
     }
 
     // SMS confirmation to client — from the tenant's own number
