@@ -181,7 +181,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: var(--black); color: var(--text); font-family: "DM Mono", monospace; font-size: 14px; line-height: 1.6; }
-        body::after { content: ""; position: fixed; inset: 0; background-image: linear-gradient(rgba(200,169,110,.018) 1px,transparent 1px), linear-gradient(90deg,rgba(200,169,110,.018) 1px,transparent 1px); background-size: 72px 72px; pointer-events: none; z-index: 0; }
+        body::after { content: ""; position: fixed; inset: 0; background-image: linear-gradient(color-mix(in srgb, var(--brand) 4%, transparent) 1px,transparent 1px), linear-gradient(90deg,color-mix(in srgb, var(--brand) 4%, transparent) 1px,transparent 1px); background-size: 72px 72px; pointer-events: none; z-index: 0; }
         .booking-layout {
           display: grid;
           grid-template-columns: 240px 1fr;
