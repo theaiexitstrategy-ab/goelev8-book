@@ -511,7 +511,11 @@ export default function BookingClient({ tenant, schedule }: Props) {
         .bk-link:hover { text-decoration: underline; }
 
         .bk-footer { margin-top: 20px; font-size: 12px; color: var(--bk-faint); }
-        .bk-footer a { color: var(--bk-muted); text-decoration: none; font-weight: 600; }
+        .bk-footer a { color: var(--bk-muted); text-decoration: none; }
+        .bk-powered { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px; transition: background .15s; }
+        .bk-powered:hover { background: #e9ebef; }
+        .bk-powered img { height: 18px; width: auto; display: block; }
+        .bk-powered strong { color: #182230; font-weight: 700; }
         .bk-footer a:hover { color: var(--bk-ink); }
 
         @media (max-width: 900px) {
@@ -731,7 +735,10 @@ export default function BookingClient({ tenant, schedule }: Props) {
         )}
 
         <div className="bk-footer">
-          Powered by <a href="https://book.goelev8.ai">GoElev8.AI</a>
+          <a href="https://book.goelev8.ai" className="bk-powered">
+            <img src="/brand/goelev8-mark.png" alt="" />
+            <span>Powered by <strong>GoElev8.AI</strong></span>
+          </a>
         </div>
       </div>
     </>

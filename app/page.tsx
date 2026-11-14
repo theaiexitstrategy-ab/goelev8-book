@@ -56,9 +56,6 @@ export default function LandingPage() {
   const [demoSuccess, setDemoSuccess] = useState(false);
   const [demoAiThink, setDemoAiThink] = useState(false);
 
-  /* ─── signup form state ─── */
-  const [signupSlug, setSignupSlug] = useState('');
-
   const openWizard = useCallback(() => {
     setWizardOpen(true);
     setWStep(1);
@@ -76,6 +73,8 @@ export default function LandingPage() {
     const s = slugify(biz.replace(/\s+/g, '-'));
     setWSlug(s);
   }, []);
+
+  const step1Ready = wBiz.trim().length > 1 && wSlug.length >= 3 && slugStatus === 'available';
 
   /* ─── slug availability check ─── */
   useEffect(() => {
@@ -305,8 +304,8 @@ export default function LandingPage() {
       <nav className="nav">
         <div className="nav-inner">
           <a href="/" className="logo">
-            <span className="logo-mark">G</span>
-            <span className="logo-text">GoElev8.AI <span>Booking</span></span>
+            <span className="logo-mark"><img src="/brand/goelev8-mark-white.png" alt="" /></span>
+            <span className="logo-text"><span className="wm">GO ELEV8.AI</span><span className="logo-sub">Booking</span></span>
           </a>
           <ul className="nav-links">
             <li><a href="#features">Features</a></li>
@@ -369,6 +368,7 @@ export default function LandingPage() {
 
         {/* RIGHT — ANIMATED BOOKING WIDGET */}
         <div className="hero-right">
+          <img className="hero-mascot" src="/brand/goelev8-mascot.png" alt="GoElev8.AI booking assistant" />
           <div className="booking-shell" style={{ position: 'relative' }}>
             <div className="shell-bar">
               <div className="shell-dots"><div className="sd" /><div className="sd" /><div className="sd" /></div>
@@ -554,6 +554,7 @@ export default function LandingPage() {
       {/* SIGNUP SECTION */}
       <section className="section" id="signup">
         <div className="signup-card">
+          <img className="signup-mascot" src="/brand/goelev8-mascot.png" alt="" />
           <div className="sec-head center">
             <div className="sec-label">Claim your link</div>
             <h2 className="sec-title">Your booking page is waiting.</h2>
@@ -561,26 +562,28 @@ export default function LandingPage() {
           </div>
           <div className="sform">
             <div className="frow">
-              <div className="ff"><label className="flabel">First name</label><input className="finput" type="text" placeholder="Aaron" /></div>
-              <div className="ff"><label className="flabel">Last name</label><input className="finput" type="text" placeholder="Bryant" /></div>
+              <div className="ff"><label className="flabel">First name</label><input className="finput" type="text" autoComplete="given-name" placeholder="Aaron" value={wFn} onChange={e => setWFn(e.target.value)} /></div>
+              <div className="ff"><label className="flabel">Last name</label><input className="finput" type="text" autoComplete="family-name" placeholder="Bryant" value={wLn} onChange={e => setWLn(e.target.value)} /></div>
             </div>
             <div className="ff">
               <label className="flabel">Business name</label>
-              <input className="finput" type="text" placeholder="The Flex Facility" onChange={e => {
-                const s = slugify(e.target.value.replace(/\s+/g, '-'));
-                setSignupSlug(s);
-              }} />
+              <input className="finput" type="text" autoComplete="organization" placeholder="The Flex Facility" value={wBiz} onChange={e => doAutoSlug(e.target.value)} />
             </div>
             <div className="ff">
               <label className="flabel">Your booking link</label>
               <div className="url-wrap">
                 <div className="url-pre">book.goelev8.ai/</div>
-                <input className="url-in" type="text" placeholder="yourcompany" value={signupSlug} onChange={e => setSignupSlug(slugify(e.target.value))} />
+                <input className="url-in" type="text" placeholder="yourcompany" value={wSlug} onChange={e => setWSlug(slugify(e.target.value))} />
+              </div>
+              <div className="w-hint">
+                {slugStatus === 'checking' && 'Checking availability...'}
+                {slugStatus === 'available' && <span className="ok">&#10003; book.goelev8.ai/{wSlug} is available!</span>}
+                {slugStatus === 'taken' && <span className="bad">&#10007; This link is already taken.</span>}
               </div>
             </div>
-            <div className="ff"><label className="flabel">Email</label><input className="finput" type="email" placeholder="you@yourbusiness.com" /></div>
-            <div className="ff"><label className="flabel">Phone</label><input className="finput" type="tel" placeholder="+1 (314) 000-0000" /></div>
-            <button className="btn btn-primary btn-lg btn-block" onClick={openWizard}>Claim book.goelev8.ai/<span id="slug-preview">{signupSlug || 'yourcompany'}</span> &rarr;</button>
+            <div className="ff"><label className="flabel">Email</label><input className="finput" type="email" autoComplete="email" placeholder="you@yourbusiness.com" value={wEmail} onChange={e => setWEmail(e.target.value)} /></div>
+            <div className="ff"><label className="flabel">Phone</label><input className="finput" type="tel" autoComplete="tel" placeholder="+1 (314) 000-0000" value={wPhone} onChange={e => setWPhone(e.target.value)} /></div>
+            <button className="btn btn-primary btn-lg btn-block" onClick={openWizard}>Claim book.goelev8.ai/<span id="slug-preview">{wSlug || 'yourcompany'}</span> &rarr;</button>
             <div className="fine">By signing up you agree to our <a href="#">Terms</a> and <a href="#">Privacy Policy</a>.<br />Your portal activates instantly. Free plan &middot; No credit card required.</div>
           </div>
         </div>
@@ -589,7 +592,10 @@ export default function LandingPage() {
       {/* FOOTER */}
       <footer className="footer">
         <div className="footer-inner">
-          <div className="fl">&copy; 2026 <a href="https://goelev8.ai">GoElev8.ai</a> &middot; Aaron Bryant &middot; All rights reserved.</div>
+          <div className="fbrand">
+            <img className="flockup" src="/brand/goelev8-lockup.png" alt="GoElev8.AI — Infinite Possibilities" />
+            <div className="fl">&copy; 2026 <a href="https://goelev8.ai">GoElev8.ai</a> &middot; Aaron Bryant &middot; All rights reserved.</div>
+          </div>
           <div className="fr">
             <a href="https://portal.goelev8.ai">Portal Login</a>
             <a href="#">Terms</a><a href="#">Privacy</a><a href="#">Contact</a>
@@ -604,8 +610,8 @@ export default function LandingPage() {
             {/* Header */}
             <div className="wz-top">
               <div className="logo">
-                <span className="logo-mark">G</span>
-                <span className="logo-text">GoElev8.AI <span>Booking</span></span>
+                <span className="logo-mark"><img src="/brand/goelev8-mark-white.png" alt="" /></span>
+                <span className="logo-text"><span className="wm">GO ELEV8.AI</span><span className="logo-sub">Booking</span></span>
               </div>
               <button className="wz-close" onClick={closeWizard} aria-label="Close">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
@@ -648,7 +654,9 @@ export default function LandingPage() {
                     </div>
                   </div>
                   <div className="w-actions">
-                    <button className="btn btn-primary btn-lg btn-block" onClick={() => setWStep(2)}>Looks good &mdash; Next</button>
+                    <button className="btn btn-primary btn-lg btn-block" disabled={!step1Ready} onClick={() => setWStep(2)}>
+                      {slugStatus === 'checking' ? 'Checking link…' : <>Looks good &mdash; Next</>}
+                    </button>
                   </div>
                 </div>
               )}
@@ -870,9 +878,7 @@ export default function LandingPage() {
               {/* Launch success */}
               {wStep === 6 && launched && (
                 <div className="w-done">
-                  <div className="w-done-icon">
-                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5 10 17l9-10" /></svg>
-                  </div>
+                  <img className="w-done-mascot" src="/brand/goelev8-mascot.png" alt="" />
                   <h3 className="w-done-title">You&apos;re live!</h3>
                   <div className="w-done-url">book.goelev8.ai/{wSlug}</div>
                   <p className="ws-p" style={{ textAlign: 'center' }}>Your booking page is live right now.<br />Share this link with your clients to start receiving bookings.</p>
@@ -895,16 +901,18 @@ export default function LandingPage() {
 const LANDING_CSS = `
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --brand:#00b4d8;
-  --brand-strong:#0891b2;
-  --brand-hover:#0e7490;
-  --brand-text:#00768e;
-  --tint:rgba(0,180,216,.10);
-  --tint-strong:rgba(0,180,216,.18);
-  --ring:rgba(0,180,216,.35);
+  --navy:#182230;
+  --slate:#354050;
+  --brand:#39caf1;
+  --brand-strong:#182230;
+  --brand-hover:#2a3647;
+  --brand-text:#227890;
+  --tint:rgba(57,202,241,.12);
+  --tint-strong:rgba(57,202,241,.22);
+  --ring:rgba(57,202,241,.45);
   --bg:#f4f5f7;
   --card:#ffffff;
-  --ink:#0b1220;
+  --ink:#182230;
   --body:#374151;
   --muted:#6b7280;
   --faint:#9ca3af;
@@ -939,9 +947,17 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .nav{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.85);backdrop-filter:saturate(180%) blur(14px);-webkit-backdrop-filter:saturate(180%) blur(14px);border-bottom:1px solid var(--line)}
 .nav-inner{max-width:1200px;margin:0 auto;height:64px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;gap:16px}
 .logo{display:flex;align-items:center;gap:10px;text-decoration:none}
-.logo-mark{width:32px;height:32px;border-radius:9px;background:var(--brand);color:#0b1220;display:grid;place-items:center;font-weight:800;font-size:15px}
-.logo-text{font-weight:700;font-size:16px;color:var(--ink);letter-spacing:-.01em;white-space:nowrap}
-.logo-text span{color:var(--muted);font-weight:500}
+.logo-mark{width:34px;height:34px;border-radius:9px;background:var(--navy);display:grid;place-items:center;flex-shrink:0}
+.logo-mark img{height:21px;width:auto;display:block}
+.logo-text{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.wm{font-family:'Montserrat','Inter',sans-serif;font-weight:800;font-size:17px;letter-spacing:.04em;color:var(--navy)}
+.logo-sub{font-size:15px;font-weight:500;color:var(--muted)}
+.hero-mascot{position:absolute;left:-92px;bottom:-34px;width:150px;height:auto;z-index:3;pointer-events:none;filter:drop-shadow(0 14px 20px rgba(24,34,48,.18))}
+.signup-mascot{display:block;width:104px;height:auto;margin:-96px auto 12px}
+.w-done-mascot{display:block;width:120px;height:auto;margin:0 auto 12px}
+.fbrand{display:flex;flex-direction:column;gap:8px}
+.flockup{height:30px;width:auto;display:block}
+.btn:disabled{opacity:.45;cursor:not-allowed}
 .nav-links{display:flex;align-items:center;gap:28px;list-style:none}
 .nav-links a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;transition:color .15s}
 .nav-links a:hover{color:var(--ink)}
@@ -1059,7 +1075,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{ou
 .plan-feats li::before{content:"\\2713";color:var(--brand-text);font-weight:700;font-size:13px;width:20px;height:20px;border-radius:50%;background:var(--tint);display:grid;place-items:center;flex-shrink:0}
 
 /* Signup */
-.signup-card{max-width:620px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:48px 40px}
+.signup-card{max-width:620px;margin:56px auto 0;background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:48px 40px}
 .signup-card .sec-head{margin-bottom:32px}
 .sform{display:flex;flex-direction:column;gap:16px}
 .frow{display:flex;gap:12px}
@@ -1174,6 +1190,7 @@ select.wi{appearance:none;-webkit-appearance:none;background-image:url("data:ima
   .booking-shell,.ws,.wz-overlay{animation:none}
 }
 @media (max-width:980px){
+  .hero-mascot{display:none}
   .hero{grid-template-columns:minmax(0,1fr);gap:48px;padding-top:48px}
   .hero-right{max-width:620px;width:100%;margin:0 auto}
   .feat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -1183,7 +1200,7 @@ select.wi{appearance:none;-webkit-appearance:none;background-image:url("data:ima
 @media (max-width:640px){
   .nav-inner{padding:0 16px;height:60px}
   .nav-signin{display:none}
-  .logo-text span{display:none}
+  .logo-sub{display:none}
   .hero{padding:36px 16px 56px}
   .hero-sub{font-size:16px}
   .hero-btns .btn{flex:1}
