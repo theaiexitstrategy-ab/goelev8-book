@@ -3,8 +3,12 @@
 import { createServiceClient } from '@/lib/supabase-service';
 import { notFound } from 'next/navigation';
 import BookingClient from './BookingClient';
+import { DEFAULT_TZ, loadBusyRanges } from '@/lib/calendar';
 
 type Props = { params: { slug: string } };
+
+// Always render fresh so new bookings + Google Calendar busy blocks show up.
+export const dynamic = 'force-dynamic';
 
 type ServiceItem = {
   name: string;
@@ -62,7 +66,7 @@ export default async function TenantBookingPage({ params }: Props) {
 
   const { data: tenant } = await supabase
     .from('tenants')
-    .select('id, slug, business_name, brand_color, logo_url, services, availability, client_id')
+    .select('id, slug, business_name, brand_color, logo_url, services, availability, client_id, timezone')
     .eq('slug', slug)
     .single();
 
@@ -128,6 +132,9 @@ export default async function TenantBookingPage({ params }: Props) {
     .eq('tenant_slug', slug)
     .eq('status', 'confirmed');
 
+  // Busy blocks from the owner's connected Google Calendar
+  const busy = await loadBusyRanges(supabase, tenant.client_id, tenant.timezone || DEFAULT_TZ);
+
   const resolvedTenant: Tenant = {
     id: tenant.id,
     slug: tenant.slug,
@@ -142,6 +149,7 @@ export default async function TenantBookingPage({ params }: Props) {
     <BookingClient
       tenant={resolvedTenant}
       existingBookings={existingBookings || []}
+      busy={busy}
     />
   );
 }

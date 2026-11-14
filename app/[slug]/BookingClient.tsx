@@ -2,6 +2,7 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
+import { labelToMinutes, overlapsBusy, type BusyRange } from '@/lib/calendar';
 
 type ServiceItem = { name: string; duration: number; price: number; info_note?: string | null };
 type Availability = { days: string[]; open: string; close: string };
@@ -19,6 +20,7 @@ type ExistingBooking = { booking_date: string; booking_time: string };
 type Props = {
   tenant: Tenant;
   existingBookings: ExistingBooking[];
+  busy?: BusyRange[];
 };
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -57,7 +59,9 @@ function generateTimeSlots(open: string, close: string, duration: number): strin
   return slots;
 }
 
-export default function BookingClient({ tenant, existingBookings }: Props) {
+type CalendarLinks = { google_url: string; ics_url: string; synced_to_owner: boolean; invite_emailed: boolean };
+
+export default function BookingClient({ tenant, existingBookings, busy = [] }: Props) {
   const brand = tenant.brand_color || '#c8a96e';
   const services = tenant.services || [];
   const avail = tenant.availability || { days: [], open: '9:00 AM', close: '6:00 PM' };
@@ -75,6 +79,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
   const [clientPhone, setClientPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [calLinks, setCalLinks] = useState<CalendarLinks | null>(null);
 
   const today = useMemo(() => {
     const d = new Date();
@@ -120,8 +125,12 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
   }, [selectedDate, selectedService, avail.open, avail.close]);
 
   const isSlotBooked = useCallback(
-    (time: string) => selectedDate ? bookedSlots.has(`${selectedDate}|${time}`) : false,
-    [selectedDate, bookedSlots]
+    (time: string) => {
+      if (!selectedDate) return false;
+      if (bookedSlots.has(`${selectedDate}|${time}`)) return true;
+      return overlapsBusy(busy, selectedDate, labelToMinutes(time), selectedService?.duration || 60);
+    },
+    [selectedDate, bookedSlots, busy, selectedService]
   );
 
   const handleConfirm = async () => {
@@ -136,6 +145,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
         body: JSON.stringify({
           slug: tenant.slug,
           service: selectedService.name,
+          duration: selectedService.duration,
           date: selectedDate,
           time: selectedTime,
           client_name: clientName,
@@ -151,6 +161,7 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
         return;
       }
 
+      setCalLinks(data.calendar || null);
       setStep('success');
     } catch {
       setError('Something went wrong. Please try again.');
@@ -653,6 +664,29 @@ export default function BookingClient({ tenant, existingBookings }: Props) {
                     }}>
                       &#128241; SMS Confirmation Sent
                     </div>
+                    {calLinks?.invite_emailed && (
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 12 }}>
+                        A calendar invite was emailed to {clientEmail}.
+                      </div>
+                    )}
+                    {calLinks && (
+                      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 20 }}>
+                        <a
+                          href={calLinks.google_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ border: `1px solid ${brand}`, color: brand, padding: '10px 16px', fontSize: 11, letterSpacing: '.06em', textDecoration: 'none' }}
+                        >
+                          + Google Calendar
+                        </a>
+                        <a
+                          href={calLinks.ics_url}
+                          style={{ border: `1px solid ${brand}`, color: brand, padding: '10px 16px', fontSize: 11, letterSpacing: '.06em', textDecoration: 'none' }}
+                        >
+                          + Apple / Outlook (.ics)
+                        </a>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

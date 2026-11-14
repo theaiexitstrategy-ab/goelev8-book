@@ -2,6 +2,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-service';
+import {
+  DEFAULT_TZ, labelToMinutes, zonedToUtc, loadBusyRanges, overlapsBusy,
+  pushBookingToGoogle, googleTemplateUrl, icsUrl,
+} from '@/lib/calendar';
 
 async function sendSms(to: string, body: string, fromNumber?: string | null) {
   const sid = process.env.TWILIO_ACCOUNT_SID;
@@ -32,11 +36,12 @@ async function mirrorToPortal(
     service: string;
     date: string;
     time: string;
+    tz: string;
   }
 ) {
   try {
-    const { clientId, name, phone, email, service, date, time } = args;
-    const startsAt = new Date(`${date} ${time}`).toISOString();
+    const { clientId, name, phone, email, service, date, time, tz } = args;
+    const startsAt = zonedToUtc(date, labelToMinutes(time), tz).toISOString();
     const bookingDate = `${date} ${time}`;
 
     const { data: bookingRow, error: bookingErr } = await supabase
@@ -105,6 +110,9 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { slug, service, date, time, client_name, client_phone, client_email } = body;
+    const rawDuration = Number(body.duration);
+    const duration_min = Number.isFinite(rawDuration) && rawDuration >= 5 && rawDuration <= 480
+      ? Math.round(rawDuration) : 60;
 
     if (!slug || !service || !date || !time || !client_name || !client_phone) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
@@ -115,13 +123,18 @@ export async function POST(request: NextRequest) {
     // Verify tenant exists and get linked client info
     const { data: tenant } = await supabase
       .from('tenants')
-      .select('business_name, owner_phone, client_id')
+      .select('slug, business_name, owner_email, owner_phone, client_id, timezone')
       .eq('slug', slug)
       .single();
 
     if (!tenant) {
       return NextResponse.json({ error: 'Business not found.' }, { status: 404 });
     }
+    const tz: string = tenant.timezone || DEFAULT_TZ;
+
+    let startMin: number;
+    try { startMin = labelToMinutes(time); }
+    catch { return NextResponse.json({ error: 'Invalid time.' }, { status: 400 }); }
 
     // If tenant is linked to a portal client, use their Twilio phone number
     let tenantPhone: string | null = null;
@@ -144,9 +157,15 @@ export async function POST(request: NextRequest) {
       .eq('booking_date', date)
       .eq('booking_time', time)
       .eq('status', 'confirmed')
-      .single();
+      .maybeSingle();
 
     if (existing) {
+      return NextResponse.json({ error: 'This time slot is no longer available.' }, { status: 409 });
+    }
+
+    // Block slots that conflict with the owner's Google Calendar
+    const busy = await loadBusyRanges(supabase, tenant.client_id, tz);
+    if (overlapsBusy(busy, date, startMin, duration_min)) {
       return NextResponse.json({ error: 'This time slot is no longer available.' }, { status: 409 });
     }
 
@@ -161,6 +180,7 @@ export async function POST(request: NextRequest) {
         service,
         booking_date: date,
         booking_time: time,
+        duration_min,
       })
       .select('id')
       .single();
@@ -180,13 +200,34 @@ export async function POST(request: NextRequest) {
         service,
         date,
         time,
+        tz,
       });
     }
+
+    const calBooking = {
+      id: booking.id,
+      service,
+      client_name,
+      client_email: client_email || null,
+      client_phone,
+      booking_date: date,
+      booking_time: time,
+      duration_min,
+    };
+    const calTenant = {
+      slug: tenant.slug,
+      business_name: tenant.business_name,
+      owner_email: tenant.owner_email,
+      timezone: tz,
+    };
+
+    // Put it on the owner's Google Calendar and email the client a calendar invite
+    const gcal = await pushBookingToGoogle(supabase, tenant.client_id, calBooking, calTenant);
 
     // SMS confirmation to client — from the tenant's own number
     await sendSms(
       client_phone,
-      `Confirmed! Your ${service} at ${tenant.business_name} is booked for ${date} at ${time}. Reply CANCEL to cancel.`,
+      `Confirmed! Your ${service} at ${tenant.business_name} is booked for ${date} at ${time}. Add to your calendar: ${icsUrl(booking.id)} Reply CANCEL to cancel.`,
       tenantPhone
     );
 
@@ -202,6 +243,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       confirmed: true,
       booking_id: booking.id,
+      calendar: {
+        google_url: googleTemplateUrl(calBooking, calTenant),
+        ics_url: icsUrl(booking.id),
+        synced_to_owner: !!gcal.event_id,
+        invite_emailed: !!gcal.event_id && !!client_email,
+      },
     });
   } catch (err) {
     console.error('Booking error:', err);
