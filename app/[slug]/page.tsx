@@ -10,6 +10,8 @@ type Props = { params: { slug: string } };
 // Always render fresh so new bookings + Google Calendar busy blocks show up.
 export const dynamic = 'force-dynamic';
 
+export const viewport = { themeColor: '#f4f5f7' };
+
 type ServiceItem = {
   name: string;
   duration: number;
@@ -31,6 +33,7 @@ type Tenant = {
   logo_url: string | null;
   services: ServiceItem[];
   availability: Availability;
+  timezone: string;
 };
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -143,6 +146,7 @@ export default async function TenantBookingPage({ params }: Props) {
     logo_url: tenant.logo_url,
     services,
     availability,
+    timezone: tenant.timezone || DEFAULT_TZ,
   };
 
   return (
