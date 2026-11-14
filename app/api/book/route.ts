@@ -3,9 +3,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase-service';
 import {
-  DEFAULT_TZ, labelToMinutes, zonedToUtc, loadBusyRanges, overlapsBusy,
+  labelToMinutes, zonedToUtc, utcToZoned,
   pushBookingToGoogle, googleTemplateUrl, icsUrl,
 } from '@/lib/calendar';
+import { slotsForDate } from '@/lib/availability';
+import { loadBookingConfig } from '@/lib/schedule';
 
 async function sendSms(to: string, body: string, fromNumber?: string | null) {
   const sid = process.env.TWILIO_ACCOUNT_SID;
@@ -110,31 +112,37 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { slug, service, date, time, client_name, client_phone, client_email } = body;
-    const rawDuration = Number(body.duration);
-    const duration_min = Number.isFinite(rawDuration) && rawDuration >= 5 && rawDuration <= 480
-      ? Math.round(rawDuration) : 60;
 
     if (!slug || !service || !date || !time || !client_name || !client_phone) {
       return NextResponse.json({ error: 'Missing required fields.' }, { status: 400 });
     }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return NextResponse.json({ error: 'Invalid date.' }, { status: 400 });
+    }
 
     const supabase = createServiceClient();
 
-    // Verify tenant exists and get linked client info
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('slug, business_name, owner_email, owner_phone, client_id, timezone')
-      .eq('slug', slug)
-      .single();
-
-    if (!tenant) {
+    // Load tenant + the same schedule the booking page uses
+    const config = await loadBookingConfig(supabase, slug);
+    if (!config) {
       return NextResponse.json({ error: 'Business not found.' }, { status: 404 });
     }
-    const tz: string = tenant.timezone || DEFAULT_TZ;
+    const { tenant, services, schedule } = config;
+    const tz = tenant.timezone;
 
     let startMin: number;
     try { startMin = labelToMinutes(time); }
     catch { return NextResponse.json({ error: 'Invalid time.' }, { status: 400 }); }
+
+    // Duration comes from the tenant's service list, not the browser
+    const svc = services.find((s) => s.name === service);
+    const duration_min = svc?.duration || 60;
+
+    // Slot must be inside business hours and clear of busy time
+    const now = utcToZoned(new Date(), tz);
+    if (!slotsForDate(schedule, date, duration_min, svc ? svc.name : null, now).includes(startMin)) {
+      return NextResponse.json({ error: 'This time slot is no longer available.' }, { status: 409 });
+    }
 
     // If tenant is linked to a portal client, use their Twilio phone number
     let tenantPhone: string | null = null;
@@ -157,15 +165,10 @@ export async function POST(request: NextRequest) {
       .eq('booking_date', date)
       .eq('booking_time', time)
       .eq('status', 'confirmed')
-      .maybeSingle();
+      .limit(1);
 
-    if (existing) {
-      return NextResponse.json({ error: 'This time slot is no longer available.' }, { status: 409 });
-    }
-
-    // Block slots that conflict with the owner's Google Calendar
-    const busy = await loadBusyRanges(supabase, tenant.client_id, tz);
-    if (overlapsBusy(busy, date, startMin, duration_min)) {
+    // Re-check right before insert (guards against two people booking at once)
+    if (existing && existing.length > 0) {
       return NextResponse.json({ error: 'This time slot is no longer available.' }, { status: 409 });
     }
 

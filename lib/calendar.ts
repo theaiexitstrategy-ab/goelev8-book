@@ -257,49 +257,85 @@ export async function pushBookingToGoogle(
   }
 }
 
-// ─── Busy blocks (Google → booking page) ────────────────────────
+// ─── Google Calendar → booking page ─────────────────────────────
+// Reads the portal's google_calendar_busy cache (kept fresh by the portal's
+// push webhook + 15-min cron). kind='busy' blocks time; kind='available'
+// comes from events titled "Available" / "Office Hours" / "Bookable" and
+// defines bookable windows.
 
-export type BusyRange = { date: string; start: number; end: number }; // minutes-of-day in tenant tz
+export type { BusyRange } from './availability';
+export { overlapsBusy } from './availability';
+import type { BusyRange, Window } from './availability';
 
-/** Read the portal's google_calendar_busy cache and convert to per-day ranges in tenant tz. */
-export async function loadBusyRanges(
-  supabase: SupabaseClient,
-  clientId: string | null,
-  tz: string,
-  days = 120
-): Promise<BusyRange[]> {
-  if (!clientId) return [];
-  const now = new Date();
-  const until = new Date(now.getTime() + days * 86_400_000);
-  const { data } = await supabase
-    .from('google_calendar_busy')
-    .select('starts_at, ends_at')
-    .eq('client_id', clientId)
-    .lt('starts_at', until.toISOString())
-    .gt('ends_at', now.toISOString());
-
+/** Split a UTC range into per-day minute ranges in `tz`. */
+function splitIntoDays(startsAt: Date, endsAt: Date, tz: string): BusyRange[] {
+  const s = utcToZoned(startsAt, tz);
+  const e = utcToZoned(endsAt, tz);
   const out: BusyRange[] = [];
-  for (const row of data || []) {
-    const s = utcToZoned(new Date(row.starts_at), tz);
-    const e = utcToZoned(new Date(row.ends_at), tz);
-    // Split multi-day events into one range per day.
-    let date = s.date;
-    let start = s.minutes;
-    for (let guard = 0; guard < 60; guard++) {
-      const isLast = date === e.date;
-      const end = isLast ? e.minutes : 24 * 60;
-      if (end > start) out.push({ date, start, end });
-      if (isLast || date > e.date) break;
-      const next = new Date(date + 'T00:00:00Z');
-      next.setUTCDate(next.getUTCDate() + 1);
-      date = next.toISOString().slice(0, 10);
-      start = 0;
-    }
+  let date = s.date;
+  let start = s.minutes;
+  for (let guard = 0; guard < 400; guard++) {
+    const isLast = date === e.date;
+    const end = isLast ? e.minutes : 24 * 60;
+    if (end > start) out.push({ date, start, end });
+    if (isLast || date > e.date) break;
+    const next = new Date(date + 'T00:00:00Z');
+    next.setUTCDate(next.getUTCDate() + 1);
+    date = next.toISOString().slice(0, 10);
+    start = 0;
   }
   return out;
 }
 
-export function overlapsBusy(busy: BusyRange[], date: string, startMin: number, durationMin: number): boolean {
-  const endMin = startMin + durationMin;
-  return busy.some((r) => r.date === date && r.start < endMin && r.end > startMin);
+async function loadGcalRows(
+  supabase: SupabaseClient,
+  clientId: string,
+  kind: 'busy' | 'available',
+  days: number
+): Promise<{ starts_at: string; ends_at: string }[]> {
+  const now = new Date();
+  const until = new Date(now.getTime() + days * 86_400_000);
+  const { data, error } = await supabase
+    .from('google_calendar_busy')
+    .select('starts_at, ends_at')
+    .eq('client_id', clientId)
+    .eq('kind', kind)
+    .lt('starts_at', until.toISOString())
+    .gt('ends_at', new Date(now.getTime() - 86_400_000).toISOString());
+  if (error) console.error('google_calendar_busy read failed:', error.message);
+  return data || [];
+}
+
+/** Busy events from the owner's Google Calendar, as per-day ranges in tenant tz. */
+export async function loadBusyRanges(
+  supabase: SupabaseClient,
+  clientId: string | null,
+  tz: string,
+  days = 180
+): Promise<BusyRange[]> {
+  if (!clientId) return [];
+  const rows = await loadGcalRows(supabase, clientId, 'busy', days);
+  return rows.flatMap((r) => splitIntoDays(new Date(r.starts_at), new Date(r.ends_at), tz));
+}
+
+/**
+ * "Available" windows from the owner's Google Calendar, keyed by date.
+ * Returns null when the owner doesn't use availability events.
+ */
+export async function loadAvailableWindows(
+  supabase: SupabaseClient,
+  clientId: string | null,
+  tz: string,
+  days = 180
+): Promise<Record<string, Window[]> | null> {
+  if (!clientId) return null;
+  const rows = await loadGcalRows(supabase, clientId, 'available', days);
+  if (!rows.length) return null;
+  const byDate: Record<string, Window[]> = {};
+  for (const r of rows) {
+    for (const d of splitIntoDays(new Date(r.starts_at), new Date(r.ends_at), tz)) {
+      (byDate[d.date] ||= []).push({ start: d.start, end: d.end });
+    }
+  }
+  return byDate;
 }

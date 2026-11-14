@@ -2,10 +2,10 @@
 'use client';
 
 import { useCallback, useMemo, useState } from 'react';
-import { labelToMinutes, overlapsBusy, utcToZoned, type BusyRange } from '@/lib/calendar';
+import { labelToMinutes, utcToZoned } from '@/lib/calendar';
+import { minutesToLabel, slotsForDate as computeSlots, type Schedule } from '@/lib/availability';
 
 type ServiceItem = { name: string; duration: number; price: number; info_note?: string | null };
-type Availability = { days: string[]; open: string; close: string };
 type Tenant = {
   id: string;
   slug: string;
@@ -13,21 +13,17 @@ type Tenant = {
   brand_color: string;
   logo_url: string | null;
   services: ServiceItem[];
-  availability: Availability;
-  timezone?: string;
+  timezone: string;
 };
-type ExistingBooking = { booking_date: string; booking_time: string };
 
 type Props = {
   tenant: Tenant;
-  existingBookings: ExistingBooking[];
-  busy?: BusyRange[];
+  schedule: Schedule;
 };
 
 type Step = 'service' | 'calendar' | 'form' | 'success';
 type CalendarLinks = { google_url: string; ics_url: string; synced_to_owner: boolean; invite_emailed: boolean };
 
-const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_LABELS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -36,25 +32,9 @@ const MONTH_NAMES = [
 
 // ─── Time helpers ────────────────────────────────────────────────
 
-function formatTime(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${m.toString().padStart(2, '0')} ${ampm}`;
-}
-
 /** "9:30 AM" → "9:30am" (Calendly-style display) */
 function shortTime(label: string): string {
   return label.replace(/\s*(AM|PM)$/i, (_, p: string) => p.toLowerCase());
-}
-
-function generateTimeSlots(open: string, close: string, duration: number): string[] {
-  const start = labelToMinutes(open);
-  const end = labelToMinutes(close);
-  const slots: string[] = [];
-  for (let t = start; t + duration <= end; t += 30) slots.push(formatTime(t));
-  return slots;
 }
 
 function formatDateLong(dateStr: string): string {
@@ -168,11 +148,10 @@ const Icon = {
 
 // ─── Component ───────────────────────────────────────────────────
 
-export default function BookingClient({ tenant, existingBookings, busy = [] }: Props) {
+export default function BookingClient({ tenant, schedule }: Props) {
   const c = useMemo(() => brandPalette(tenant.brand_color || '#0069ff'), [tenant.brand_color]);
   const services = tenant.services || [];
-  const avail = tenant.availability || { days: [], open: '9:00 AM', close: '6:00 PM' };
-  const tz = tenant.timezone || 'America/Chicago';
+  const tz = tenant.timezone;
 
   const [step, setStep] = useState<Step>(services.length > 1 ? 'service' : 'calendar');
   const [selectedService, setSelectedService] = useState<ServiceItem | null>(services[0] || null);
@@ -196,25 +175,11 @@ export default function BookingClient({ tenant, existingBookings, busy = [] }: P
   const [todayYear, todayMonth] = today.split('-').map(Number);
   const atFirstMonth = currentMonth.year === todayYear && currentMonth.month === todayMonth - 1;
 
-  const bookedSlots = useMemo(() => {
-    const set = new Set<string>();
-    existingBookings.forEach((b) => set.add(`${b.booking_date}|${b.booking_time}`));
-    return set;
-  }, [existingBookings]);
-
   const duration = selectedService?.duration || 60;
 
   const slotsForDate = useCallback(
-    (date: string) => {
-      const all = generateTimeSlots(avail.open, avail.close, duration);
-      return all.filter((time) => {
-        const start = labelToMinutes(time);
-        if (date === today && start <= nowLocal.minutes + 15) return false;
-        if (bookedSlots.has(`${date}|${time}`)) return false;
-        return !overlapsBusy(busy, date, start, duration);
-      });
-    },
-    [avail.open, avail.close, duration, today, nowLocal.minutes, bookedSlots, busy]
+    (date: string) => computeSlots(schedule, date, duration, selectedService?.name || null, nowLocal).map(minutesToLabel),
+    [schedule, duration, selectedService, nowLocal]
   );
 
   const calendarDays = useMemo(() => {
@@ -225,21 +190,19 @@ export default function BookingClient({ tenant, existingBookings, busy = [] }: P
     for (let i = 0; i < firstDay; i++) cells.push({ day: 0, dateStr: '', available: false, isToday: false });
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const dayName = DAY_NAMES[new Date(year, month, d).getDay()];
-      const open = dateStr >= today && avail.days.includes(dayName);
       cells.push({
         day: d,
         dateStr,
-        available: open && slotsForDate(dateStr).length > 0,
+        available: dateStr >= today && slotsForDate(dateStr).length > 0,
         isToday: dateStr === today,
       });
     }
     return cells;
-  }, [currentMonth, avail.days, today, slotsForDate]);
+  }, [currentMonth, today, slotsForDate]);
 
   const timeSlots = useMemo(() => (selectedDate ? slotsForDate(selectedDate) : []), [selectedDate, slotsForDate]);
 
-  const endTime = selectedTime ? formatTime(labelToMinutes(selectedTime) + duration) : null;
+  const endTime = selectedTime ? minutesToLabel(labelToMinutes(selectedTime) + duration) : null;
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clientEmail.trim());
   const phoneValid = clientPhone.replace(/\D/g, '').length >= 10;
   const formValid = clientName.trim().length > 1 && emailValid && phoneValid;
